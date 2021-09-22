@@ -68,7 +68,7 @@ class Window extends React.PureComponent {
         this.setState({
             close:false
         },()=>{
-            this.showHandler(null);
+            this.showHandler(this.params);
         });
     }
 
@@ -143,6 +143,9 @@ class Window extends React.PureComponent {
     }
 
     maxHandler = (e)=>{
+        if (!this.props.isMaxBtn) {
+            return
+        }
         this.trigger(EVT_MAX_WINDOW,e);
         this.max(!this.is_max);
     };
@@ -218,8 +221,8 @@ class Window extends React.PureComponent {
                         {this.props.title}
                         <div className='window-btn'>
                             {/*<IconButton className='mr-1' iconType='regular' icon='window-minimize'/>*/}
-                            <IconButton className='mr-1' iconType='regular' icon='window-maximize' onClick={this.maxHandler}/>
-                            <IconButton icon='window-close' onClick={this.close}/>
+                            {this.props.isMaxBtn?<IconButton className='mr-1' iconType='regular' icon='window-maximize' onClick={this.maxHandler}/>:null}
+                            {this.props.isCloseBtn?<IconButton icon='window-close' onClick={this.close}/>:null}
                         </div>
                     </div>
                     <div className="card-body">
@@ -256,11 +259,17 @@ Window.propTypes = {
     backColor: PropTypes.string,
     name: PropTypes.string,
     parent: PropTypes.any,
-    marginTop: PropTypes.any
+    marginTop: PropTypes.any,
+    isMaxBtn: PropTypes.bool,
+    isCloseBtn: PropTypes.bool,
+    isMinBtn: PropTypes.bool,
 };
 
 Window.defaultProps = {
-    marginTop: 0
+    marginTop: 0,
+    isMaxBtn: true,
+    isCloseBtn: true,
+    isMinBtn: false,
 };
 
 const EVT_RESIZE = 'resize';
@@ -276,3 +285,6 @@ Window.EVT_CLOSE = EVT_CLOSE;
 Window.EVT_BEFORE_CLOSE = EVT_BEFORE_CLOSE;
 
 export default Window;
+if (module.hot) {
+    module.hot.accept();
+}

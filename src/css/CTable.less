@@ -9,10 +9,11 @@
   }
   th,td {
     vertical-align: middle!important;
-    font-size: .9rem;
+    font-size: .75rem!important;
   }
   thead th {
     border-bottom: none !important;
+    font-weight: unset;
     position: relative;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -55,6 +56,16 @@
 
 .ck-ctable-header {
   border-bottom: none!important;
+  th {
+    &:first-child {
+      border-left-color: #dee2e6 !important;
+    }
+    &:last-child {
+      border-right-color: #dee2e6 !important;
+    }
+    border-left-color: #b6babd !important;
+    border-right-color: #b6babd !important;
+  }
 }
 
 .ck-ctable-nowrap {
@@ -93,4 +104,8 @@
 
 .ck-ctable-sort {
   color: #333;
+}
+
+.ck-ctable-foot {
+
 }

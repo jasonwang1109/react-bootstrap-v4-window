@@ -12,7 +12,8 @@ import {
 import {
     TableHeader,
     Button,
-    Common
+    Common,
+    Table
 } from '@clake/react-bootstrap4';
 // } from '@clake/react-bootstrap4';
 class CTableTest extends React.Component {
@@ -21,14 +22,7 @@ class CTableTest extends React.Component {
         this.state = {
             table_data:[],
             data_count:0,
-            page:1,
-            editData:[{
-                "id":1,
-                "price":0,
-                "name":1,
-                "date":"asdfasdf",
-                "rule":"1aaasdf",
-            }],
+            page:1
         };
 
         if (this.props.parent instanceof Window) {
@@ -196,75 +190,38 @@ class CTableTest extends React.Component {
     };
 
     testHandler = ()=>{
-        let list = this.edit_table.getEditRows();
-        console.log(list);
-
-        list.forEach((row,idx)=>{
-            row.id = idx + 1;
-        });
-        this.edit_table.clearEditRows();
-        this.setState({
-            editData:list
-        })
+        console.log(this.edit_table.getEditRows());
     };
+
+    ComboSearch() {
+
+    }
 
     render() {
         return (
             <React.Fragment>
                 <Button absolute y='10px' x='10px' size='sm' onClick={this.clickHandler}>Alert</Button>
                 <Button absolute y='10px' x='110px' size='sm' onClick={this.testHandler}>Get Edit Data</Button>
-                <CTable position={{
-                    right:'10px',
-                    left:'10px',
-                    top:'50px',
-                }} move absolute={true} y={'100px'} x={'10px'} width='250px' height='200px' bordered={true} select={false}
-                        onSelectPage={(page)=>{
-                            console.log(page);
-                        }}
-                        page={this.state.page}
-                        dataCount={this.state.data_count}
-                        data={this.state.table_data}
-                        onFilter={this.filterHandler}
-                        onSort={this.sortHandler}
-                        total={{id:10}}
-                        customMenu={[{field:'test',text:'测试自定义菜单',click:(e,field,data)=>{
-                                console.log(e);
-                                console.log(field);
-                                console.log(data);
-                            }}]}
-                >
-                    <TableHeader field='id' text='ID' width='100px' onDoubleClick={(row)=>{
-                        console.log(row);
+                <CTable jsxId={'sub_wrk_detail_item'} absolute={true} x={'20px'} y={'309px'} width={'703px'} height={'139px'} scroll={true} headerTheme={'light'} hover={true} select={false} sm={true} fontSm={true} foot={false} source={'v_wrk_item'} data={this.state.tableData} ref={c=>this.queryTable=c} page={this.state.page} dataCount={this.state.dataCount} onSelectPage={this.getData} showNumbers={50} edit={true}>
+                    <Table.Header field={'item_seq_no'} text={'Seq'} width={'36px'} align={'center'} type={''}/>
+                    <Table.Header field={'item_desc'} text={'Item Desc'} width={'204px'} align={'left'} type={''}/>
+                    <Table.Header field={'item_by_code'} text={'Wrok By'} width={'68px'} align={'left'} type={''}/>
+                    <Table.Header field={'item_type_code'} text={'Type'} width={'96px'} align={''} type={'combo'} combo={{
+                        onSearch:this.ComboSearch('item_type_code','q_wrk_tb_item_type'),
+                        searchColumn:'item_type_code',
+                        width:'220px',
+                        header:false,
+                        filterColumns:[
+                            {field:'item_type_code',width:'76px'},
+                            {field:'item_type_desc',width:'144px'}
+                        ]
                     }}/>
-                    <TableHeader field='name' text='Name' width='200px' onFormat={(val,row,key)=>{
-                        return <span>{val}</span>
-                    }}/>
-                </CTable>
-                <CTable ref={c=>this.edit_table=c} position={{
-                    right:'10px',
-                    left:'10px',
-                    top:'260px',
-                    bottom:'10px',
-                }} move absolute={true} y={'100px'} x={'10px'} width='250px' height='200px' bordered={true} select={false}
-                        edit data={this.state.editData}
-                >
-                    <TableHeader field='id' text='ID' width='100px' align='right' disabled={true} onDoubleClick={(row)=>{
-                        console.log(row);
-                    }} noClone/>
-                    <TableHeader field='price' text='Price' width='100px' align='right' />
-                    <TableHeader field='name' text='Name' width='200px' combo={{
-                        header:true,
-                        searchColumn:'task_name',
-                        filterColumns: [{field:'task_name',text:'Task Name'},{field:'time_rule',text:'Rule'},{field:'source',text:'Source'}],
-                        width:'600px'
-                    }} comboData={this.combo_data} type='combo'
-                        onEdit={(index,val,row,callback)=>{
-                            callback(index,{
-                                rule:row.time_rule
-                            })
-                        }}/>
-                    <TableHeader field='date' text='Date' width='100px' type='calendar' />
-                    <TableHeader field='rule' text='Rule' width='100px' type='text' />
+                    <Table.Header field={'item_status_code'} text={'Status'} width={'48px'} align={'center'} type={''}/>
+                    <Table.Header field={'item_hour'} text={'A-Hour'} width={'48px'} align={'center'} type={''}/>
+                    <Table.Header field={'item_start_date'} text={'Start Date'} width={'76px'} align={'center'} onFormat={val=>val?moment(val).format('YY-MM-DD'):''} type={'calendar'}/>
+                    <Table.Header field={'item_start_date'} text={'Complete'} width={'76px'} align={'center'} onFormat={val=>val?moment(val).format('YY-MM-DD'):''} type={'calendar'}/>
+                    <Table.Header field={'ask_by_code'} text={'Ask By'} width={'68px'} align={'left'} type={''}/>
+                    <Table.Header field={'item_hour'} text={'E-Hour'} width={'48px'} align={'center'} type={''}/>
                 </CTable>
                 <WModal ref={c=>this.modal=c} fade/>
             </React.Fragment>

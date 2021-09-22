@@ -127,7 +127,10 @@ class Main extends React.Component {
         return (
             <Container className='mt-5'>
                 <h1>React Bootstrap v4 Window</h1>
+
                 <Card className='fix-card-body' header='Windows & Menus'>
+                    <Icon  icon='circle'/>
+                    <span>&bull;</span>
                     <TopMenu top>
                         <div className='ck-top-menu-item'><Icon icon='copyright'/></div>
                         <TopMenu.Item text='Main'>
@@ -137,7 +140,7 @@ class Main extends React.Component {
                                 <Menu.Item field="a_efc_console">Convert Console</Menu.Item>
                                 <Menu.Item step/>
                                 <Menu.Item field="f_aes_master">WWF / AESWeblink</Menu.Item>
-                                <Menu.Item field="f_aes_query">Query Customer</Menu.Item>
+                                <Menu.Item field="test-empty">Test Empty</Menu.Item>
                                 <Menu.Item field="test">Test</Menu.Item>
                             </Menu>
                         </TopMenu.Item>
@@ -168,7 +171,6 @@ class Main extends React.Component {
                     </div>
                 </Card>
                 <WindowGroup ref={c=>this.manage=c}>
-
                     <Window name='f_aes_query' marginTop={25} title='Query Customer' width='867px' height='444px' x={'40px'} y={'55px'} backColor={'#f3f3f4'}>
                         <LoaderComponent loadPath='/window/FAesQuery.jsx' parent={this} import={GetComponent}/>
                     </Window>
@@ -178,8 +180,11 @@ class Main extends React.Component {
                     <Window name='a_efc_console' marginTop={25} title='ETC Project  Convert Console' width='600px' height='536px' backColor={'#f3f3f4'}>
                         <LoaderComponent loadPath='/window/AEfcConsole.jsx' parent={this} import={GetComponent}/>
                     </Window>
-                    <Window name='test' marginTop={25} title='Test CTable' width='700px' height='500px' backColor={'#f3f3f4'}>
+                    <Window name='test' marginTop={25} title='Test CTable' width='1000px' height='800px' backColor={'#f3f3f4'}>
                         <LoaderComponent loadPath='/test/CTableTest' parent={this} import={GetComponent}/>
+                    </Window>
+                    <Window name='test-empty' marginTop={25} title='Test CTable' width='1000px' height='800px' backColor={'#f3f3f4'}>
+                        <LoaderComponent loadPath='/test/Test' parent={this} import={GetComponent}/>
                     </Window>
                     {windowList.map((item)=>{
                         return (<Window name={item.name} marginTop={25} title={item.title} width={item.width} height={item.height} backColor={'#f3f3f4'}>

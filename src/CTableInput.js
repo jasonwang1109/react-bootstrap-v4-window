@@ -12,7 +12,8 @@ class CTableInput extends React.Component {
     constructor(props) {
         super(props);
         this.state={
-            value:this.props.data || '',
+            value:this.parseValue(this.props.data),
+            // value: this.props.data || '',
             comboData:this.props.comboData
         };
     }
@@ -38,7 +39,8 @@ class CTableInput extends React.Component {
 
     componentWillReceiveProps(nextProps) {
         this.setState({
-            value: nextProps.data || '',
+            value: this.parseValue(nextProps.data),
+            // value: nextProps.value || '',
             comboData: nextProps.comboData
         });
     }
@@ -51,6 +53,14 @@ class CTableInput extends React.Component {
             return true
         }
         return nextState.value !== this.state.value;
+    }
+
+    parseValue(val) {
+        if (val === null || val === undefined) {
+            return "";
+        } else {
+            return '' + val;
+        }
     }
 
     getClasses() {
@@ -72,12 +82,24 @@ class CTableInput extends React.Component {
         }
     };
 
+    dblHandler = (e)=> {
+        if (this.calendar && !this.state.value) {
+            this.calendar.setCurrentDate(new Date());
+            let val = this.calendar.format()
+            this.setState({value:val})
+            if (typeof this.props.onChange === 'function') {
+                this.props.onChange(e,val);
+            }
+            this.calendar.hide();
+        }
+    };
+
     selectHandler = (val,row,e)=>{
         this.setState({
             value:val
         });
         if (typeof this.props.onChange === 'function') {
-            this.props.onChange(e,val);
+            this.props.onChange(e,val,row);
         }
     };
 
@@ -103,6 +125,7 @@ class CTableInput extends React.Component {
             <div className={this.getClasses()}>
                 <input ref={c=>this.input=c} type='text' {...this.props}
                        onChange={this.changeHandler}
+                       onDoubleClick={this.dblHandler}
                        disabled={this.props.disabled}
                        style={inputStyle}
                        className={inputClasses}

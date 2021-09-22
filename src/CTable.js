@@ -17,6 +17,7 @@ import './css/CTable.less';
 import Drag from "./Drag";
 import CTableInput from "./CTableInput";
 import CTableLang from './i18n/CTable';
+import PageBar from "./PageBar";
 class CTable extends React.Component {
     constructor(props) {
         super(props);
@@ -44,16 +45,24 @@ class CTable extends React.Component {
 
         this.sortList     = {};
         this.is_sort      = typeof this.props.onSort === 'function' || this.props.sort;
+        this.is_filter      = typeof this.props.onFilter === 'function' || this.props.filter;
         this.current_sort = null;
 
-        this.filter_type = null;
-        this.filter_text = null;
+        this.filter_list = [];
 
         this.editRows = [];
 
-        this.initTableWidth();
-
         this.cacheRow = {};
+        //列头数据
+        this.headers = {};
+        //不需要克隆列
+        this.noClone = {};
+
+        this.lockColumns = [];
+        //lock column flag
+        this.isLock = false;
+
+        this.initTableWidth();
     }
 
     componentDidMount() {
@@ -62,9 +71,10 @@ class CTable extends React.Component {
 
     componentWillReceiveProps(nextProps) {
         if (this.state.data !== nextProps.data) {
-            this.select_all = false;
-            this.selectRows = [];
             if (this.props.edit) {
+                if (this.equals(this.originalData,nextProps.data)) {
+                    return
+                }
                 this.editRows     = [];
                 this.originalData = Common.Clone(nextProps.data);
             }
@@ -72,6 +82,8 @@ class CTable extends React.Component {
                 this.allchk.setHalf(false);
                 this.selectRows = [];
             }
+            this.select_all = false;
+            this.selectRows = [];
             this.setState({
                 data     : nextProps.data,
                 dataCount: nextProps.dataCount,
@@ -87,6 +99,16 @@ class CTable extends React.Component {
         return nextState.data !== this.state.data;
     }
 
+    equals = (a, b) => {
+        if (a === b) return true;
+        if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+        if (!a || !b || (typeof a !== 'object' && typeof b !== 'object')) return a === b;
+        if (a.prototype !== b.prototype) return false;
+        let keys = Object.keys(a);
+        if (keys.length !== Object.keys(b).length) return false;
+        return keys.every(k => this.equals(a[k], b[k]));
+    };
+
     initTableWidth() {
         if (this.props.width) {
             this.width = 0;
@@ -97,6 +119,10 @@ class CTable extends React.Component {
                 if (item.props.width) {
                     let matchs = item.props.width.match(reg);
                     this.width += parseInt(matchs[1]);
+                    this.headers[item.props.field] = item.props;
+                    if (item.props.noClone) {
+                        this.noClone[item.props.field] = "";
+                    }
                 }
             });
             if (this.props.select) {
@@ -106,6 +132,62 @@ class CTable extends React.Component {
         }
     }
 
+    //inner source ********************
+    sourceLoad() {
+        if (typeof this.props.sourceFunc !== 'function') return;
+
+        this.props.sourceFunc({
+            source:this.props.source,
+            page:this.state.page,
+            number:this.props.showNumbers,
+        },(res)=>{
+            this.setState({
+                data     : res.data,
+                dataCount: res.count,
+                page     : res.page,
+            })
+        });
+    }
+
+    sourceFilter() {
+        return this.filter_list.map((item)=>{
+            switch (item.type) {
+                case "start":
+                    return {
+                        field:item.field,
+                        value:`${item.text}%`,
+                        flag:'like'
+                    };
+                case "end":
+                    return {
+                        field:item.field,
+                        value:`%${item.text}`,
+                        flag:'like'
+                    };
+                case "clear":
+                    this.filter = [];
+                    break;
+                case "":
+                    return {
+                        field:item.field,
+                        value:item.text,
+                        flag:'='
+                    };
+                default:
+                    return {
+                        field:item.field,
+                        value:`%${item.text}%`,
+                        flag:'like'
+                    }
+            }
+        });
+    }
+
+    sourceOrder() {
+
+    }
+
+    //innter source end ***************************
     //checkbox handler
     changeHandler(row, i) {
         return (checked,e) => {
@@ -196,13 +278,17 @@ class CTable extends React.Component {
             this.current_sort                = null;
             if (emitEvt && typeof this.props.onSort === 'function') {
                 this.props.onSort('','clear');
+            } else {
+                this.setState({data:this.originalData.slice(0)})
             }
+            return true;
         }
+        return false;
     }
 
     localSort(field, sort_type) {
         let desc = sort_type === 'desc';
-        let data = this.originalData.slice(0);
+        let data = this.state.data.slice(0);
         data.sort((a, b) => {
             if (a[field] > b[field]) return desc ? -1 : 1;
             if (a[field] < b[field]) return desc ? 1 : -1;
@@ -249,23 +335,50 @@ class CTable extends React.Component {
             case "delete_row":
                 this.deleteRowHandler(parseInt(this.mainMenu.data.index));
                 break;
+            case "clone_row":
+                this.cloneRow(parseInt(this.mainMenu.data.index));
+                break;
         }
     };
 
     /**
      * filter
      * */
-    localFilter() {
-
+    localFilter(text, field, type) {
+        let reg;
+        switch (type) {
+            case "start":
+                reg = new RegExp(`^${text}`);
+                break;
+            case "end":
+                reg = new RegExp(`${text}$`);
+                break;
+            default:
+                reg = new RegExp(`${text}`);
+        }
+        let data = this.state.data.slice(0);
+        let filter = [];
+        data.forEach((item)=>{
+            if (type === 'exclude') {
+                if (!reg.test(item[field])) {
+                    filter.push(item);
+                }
+            } else {
+                if (reg.test(item[field])) {
+                    filter.push(item);
+                }
+            }
+        });
+        this.setState({data:filter});
     }
 
     filterHandler(text, field, type) {
-        this.filter_text  = text;
-        this.filter_type  = type;
-        this.filter_field = field;
-        if (typeof this.props.onFilter === 'function') {
-            this.props.onFilter(text, field, type);
-        }
+        this.filter_list.push({
+            text:text,
+            field:field,
+            type:type
+        });
+
         this.setState({
             filter: {
                 start  : '',
@@ -274,14 +387,16 @@ class CTable extends React.Component {
             }
         });
         this.mainMenu.hide();
+        if (typeof this.props.onFilter === 'function') {
+            this.props.onFilter(text, field, type);
+        } else {
+            this.localFilter(text,field,type);
+        }
     }
 
     clearFilter() {
-        this.filter_text  = '';
-        this.filter_type  = '';
-        let field         = this.filter_field;
-        this.filter_field = '';
-        this.clearSort(true);
+        this.filter_list = [];
+        let is_clean = this.clearSort(true);
         this.setState({
             filter: {
                 start  : '',
@@ -290,7 +405,11 @@ class CTable extends React.Component {
             }
         });
         if (typeof this.props.onFilter === 'function') {
-            this.props.onFilter('', field, 'clear');
+            this.props.onFilter('', '', 'clear');
+        } else {
+            if (!is_clean) {
+                this.setState({data:this.originalData.slice(0)});
+            }
         }
     }
 
@@ -318,13 +437,14 @@ class CTable extends React.Component {
         data.push(Object.assign({}, this.cacheRow));
         this.editRows.push(data.length - 1);
         this.setState({
-            data: data
+            data: data,
+            dataCount: data.length,
         }, () => {
             document.querySelector(`#${this.domId}-edit`).previousElementSibling.querySelector('input:not([disabled])').focus()
         })
     };
-
-    editHandler = (e, val) => {
+    //编辑事件
+    editHandler = (e, val,row) => {
         let index = parseInt(e.target.dataset.row);
         let field = e.target.dataset.field;
         if (this.editRows.indexOf(index) === -1) {
@@ -334,6 +454,17 @@ class CTable extends React.Component {
             this.setState({data: data})
         } else {
             this.state.data[index][field] = val;
+        }
+        if (this.headers[field] && typeof(this.headers[field].onEdit) === 'function') {
+            this.headers[field].onEdit(index,val,row,this.editCallback)
+        }
+    };
+    //自定义 onEdit 事件回调函数
+    editCallback = (index,editData) => {
+        if (this.state.data[index]) {
+            let data           = this.state.data.slice(0);
+            data[index] = Object.assign(data[index],editData);
+            this.setState({data: data});
         }
     };
 
@@ -345,12 +476,16 @@ class CTable extends React.Component {
         return list;
     }
 
+    clearEditRows() {
+        this.editRows = [];
+    }
+
     deleteRowHandler(row_index) {
         if (row_index < 0 || row_index >= this.state.data.length) {
             return
         }
         if (typeof this.props.onDelete === 'function') {
-            this.props.onDelete(this.state.data[row_index], row_index);
+            this.props.onDelete(this.state.data[row_index], row_index,this.deleteRow);
         } else {
             this.deleteRow(row_index)
         }
@@ -371,7 +506,23 @@ class CTable extends React.Component {
             }
         });
 
-        this.setState({data: data});
+        this.setState({
+            data: data,
+            dataCount: data.length,
+        });
+    }
+
+    cloneRow(row_index) {
+        if (row_index < 0 || row_index >= this.state.data.length) {
+            return
+        }
+        let data = this.state.data.slice(0);
+        data.push(Object.assign({}, this.state.data[row_index],this.noClone));
+        this.editRows.push(data.length - 1);
+        this.setState({
+            data: data,
+            dataCount: data.length,
+        })
     }
 
     //****************************
@@ -488,7 +639,7 @@ class CTable extends React.Component {
             base = classNames(base, 'table-responsive');
         }
         //nowrap
-        if (this.props.noWrap && !this.props.edit) {
+        if (this.props.noWrap) {
             base = classNames(base, 'ck-ctable-nowrap');
         }
         return base;
@@ -538,7 +689,7 @@ class CTable extends React.Component {
     getHeaderClasses() {
         let base = 'ck-ctable-header';
         if (this.props.headerTheme) {
-            base = 'thead-' + this.props.headerTheme;
+            base = classNames(base,'thead-' + this.props.headerTheme);
         }
         return classNames(base, this.props.headClass);
     }
@@ -585,7 +736,7 @@ class CTable extends React.Component {
                 <table ref={c => this.table_head = c} id={`table-head-${this.domId}`} className={this.getClasses()} style={this.getTableStyles()}>
                     <thead className={this.getHeaderClasses()}>
                     <tr>
-                        {this.state.select ?
+                        {this.state.select || this.props.edit ?
                             <th style={{width:'20px',textAlign:'center'}}>
                                 {this.props.edit ? <Icon icon='list'/> :
                                     <CCheckbox ref={c=>this.allchk=c} onChange={this.selectAll}/>}
@@ -602,7 +753,7 @@ class CTable extends React.Component {
                             if (item.props.width) {
                                 style.width = item.props.width;
                             }
-                            let sort_icon = 'sort';
+                            let sort_icon = '';
                             if (this.sortList[item.props.field]) {
                                 sort_icon = 'sort-alpha-' + (this.sortList[item.props.field] === 'asc' ? 'down' : 'up');
                             }
@@ -701,11 +852,10 @@ class CTable extends React.Component {
         return (
             <React.Fragment>
                 <tr className={this.props.onClick ? 'click-row' : null} onClick={this.clickHandler(row, i)}>
-                    {this.state.select ?
-                        <th style={{width:'20px',textAlign:'center'}}>
-                            {this.editRows.indexOf(i) === -1 ? null :
-                                <Icon id={`${this.domId}-edit-row-icon-${i}`} icon='edit' className='text-danger'/>}
-                        </th> : null}
+                    <th style={{width:'20px',textAlign:'center'}}>
+                        {this.editRows.indexOf(i) === -1 ? null :
+                            <Icon id={`${this.domId}-edit-row-icon-${i}`} icon='edit' className='text-danger'/>}
+                    </th>
                     {React.Children.map(this.props.children, (item, key) => {
                         if (!item || item.props.hide) {
                             return null;
@@ -733,7 +883,9 @@ class CTable extends React.Component {
                                     }
                                 }}
                                 data-row={`${i}`}>
-                                {this.renderEditComponent(item.props, row, i)}
+                                {item.props.disabled?
+                                    (item.props.onFormat ? item.props.onFormat(row[item.props.field], row, item.props.field) : row[item.props.field]):
+                                    this.renderEditComponent(item.props, row, i)}
                             </td>
                         );
                     })}
@@ -745,8 +897,7 @@ class CTable extends React.Component {
     renderEditAddRow() {
         return (
             <tr id={this.domId + '-edit'}>
-                {this.state.select ?
-                    <th style={{width:'20px',textAlign:'center'}}><Icon icon='chevron-circle-right'/></th> : null}
+                <th style={{width:'20px',textAlign:'center'}}><Icon icon='chevron-circle-right'/></th>
                 {React.Children.map(this.props.children, (item, key) => {
                     if (!item || item.props.hide) {
                         return null;
@@ -795,10 +946,10 @@ class CTable extends React.Component {
         }
         return (
             <div>
-                <Pagination current={this.state.page} count={this.state.dataCount} size='sm'
-                            onSelect={this.selectPageHandler}
-                            number={this.props.showNumbers}
-                            showPages={this.props.showPages}/>
+                <PageBar page={this.state.page} dataCount={this.state.dataCount}
+                         onSelect={this.selectPageHandler}
+                         showNumbers={this.props.showNumbers}
+                         showPages={this.props.showPages} noPage={this.props.edit}/>
             </div>
         )
     }
@@ -843,7 +994,8 @@ class CTable extends React.Component {
         let lang = this.props.lang;
         if (!lang) {
             let i18 = i18n.getLang();
-            lang = CTableLang[i18.short];
+            let langStr = typeof lang === 'string'?lang:i18.short;
+            lang = CTableLang[langStr];
         }
         return (
             <Menu ref={c => this.mainMenu = c} onClick={this.menuClickHandler}>
@@ -853,16 +1005,34 @@ class CTable extends React.Component {
                 <Menu.Item field="cut" onClick={() => {
                     document.execCommand("cut");
                 }}><Icon className='mr-1' icon='cut'/>{lang['Cut']}</Menu.Item>
-                <Menu.Item step/>
-                <Menu.Item field='select_filter' onClick={(e, field, data) => {
+                {this.is_filter?<Menu.Item step/>:null}
+                {this.is_filter?<Menu.Item field='select_filter' onClick={(e, field, data) => {
                     let select = document.getSelection();
                     this.filterHandler(select.toString(), data.field, 'contain');
-                }}><Icon className='mr-1' icon='filter'/>{lang['Filter By Selection']}</Menu.Item>
-                <Menu.Item field='clear_filter' onClick={() => {
+                }}><Icon className='mr-1' icon='filter'/>{lang['Filter By Selection']}</Menu.Item>:null}
+                {this.is_filter?<Menu.Item field='select_exclude' onClick={(e, field, data) => {
+                    let select = document.getSelection();
+                    this.filterHandler(select.toString(), data.field, 'exclude');
+                }}><Icon className='mr-1' icon='filter'/>{lang['Filter Excluding Selection']}</Menu.Item>:null}
+                {this.is_filter||this.is_sort?<Menu.Item field='clear_filter' onClick={() => {
                     this.clearFilter();
-                }}><Icon className='mr-1' icon='brush'/>{lang['Clear Filter / Sort']}</Menu.Item>
-                <Menu.Item step/>
-                <Menu.Item field="filter">
+                }}><span className='text-danger'><Icon className='mr-1' icon='brush'/>{lang['Clear Filter / Sort']}</span></Menu.Item>:null}
+                {this.is_filter?<Menu.Item step/>:null}
+                {this.is_filter?<Menu.Item field="equal">
+                    <span className='mr-1' style={inputStyle}>{lang['Equal With']}</span>
+                    <Input className='mr-1' size='xs' width='120px'
+                           data={this.state.filter.equal}
+                           onChange={this.filterChangeHandler('equal')}
+                           onMouseDown={stopEvent}
+                           onEnter={() => {
+                               this.filterHandler(this.state.filter.equal, this.mainMenu.data.field, 'equal');
+                           }}
+                    />
+                    <Button size='xs' onMouseDown={stopEvent} onClick={(e) => {
+                        this.filterHandler(this.state.filter.equal, this.mainMenu.data.field, 'equal');
+                    }} icon='search'/>
+                </Menu.Item>:null}
+                {this.is_filter?<Menu.Item field="filter">
                     <span className='mr-1' style={inputStyle}>{lang['Start With']}</span>
                     <Input className='mr-1' size='xs' width='120px'
                            data={this.state.filter.start}
@@ -875,40 +1045,41 @@ class CTable extends React.Component {
                     <Button size='xs' onMouseDown={stopEvent} onClick={(e) => {
                         this.filterHandler(this.state.filter.start, this.mainMenu.data.field, 'start');
                     }} icon='search'/>
-                </Menu.Item>
-                <Menu.Item field="filter">
+                </Menu.Item>:null}
+                {this.is_filter?<Menu.Item field="filter">
                     <span className='mr-1' style={inputStyle}>{lang['End With']}</span>
                     <Input className='mr-1' size='xs' width='120px'
                            data={this.state.filter.end}
                            onChange={this.filterChangeHandler('end')}
                            onMouseDown={stopEvent}
                            onEnter={() => {
-                               this.filterHandler(this.state.filter.start, this.mainMenu.data.field, 'start');
+                               this.filterHandler(this.state.filter.end, this.mainMenu.data.field, 'end');
                            }}
                     />
                     <Button size='xs' onMouseDown={stopEvent} onClick={(e) => {
                         this.filterHandler(this.state.filter.end, this.mainMenu.data.field, 'end');
                     }} icon='search'/>
-                </Menu.Item>
-                <Menu.Item field="filter">
+                </Menu.Item>:null}
+                {this.is_filter?<Menu.Item field="filter">
                     <span className='mr-1' style={inputStyle}>{lang['Contain with']}</span>
                     <Input className='mr-1' size='xs' width='120px'
                            data={this.state.filter.contain}
                            onChange={this.filterChangeHandler('contain')}
                            onMouseDown={stopEvent}
                            onEnter={() => {
-                               this.filterHandler(this.state.filter.start, this.mainMenu.data.field, 'start');
+                               this.filterHandler(this.state.filter.contain, this.mainMenu.data.field, 'contain');
                            }}
                     />
                     <Button size='xs' onMouseDown={stopEvent} onClick={(e) => {
                         this.filterHandler(this.state.filter.contain, this.mainMenu.data.field, 'contain');
                     }} icon='search'/>
-                </Menu.Item>
+                </Menu.Item>:null}
                 {this.is_sort?<Menu.Item step/>:null}
                 {this.is_sort?<Menu.Item field="asc"><Icon className='mr-1' icon='sort-alpha-down'/>{lang['Sort Ascending']}</Menu.Item>:null}
                 {this.is_sort?<Menu.Item field="desc"><Icon className='mr-1' icon='sort-alpha-up'/>{lang['Sort Descending']}</Menu.Item>:null}
                 {this.props.edit ? <Menu.Item step/> : null}
                 {this.props.edit ? <Menu.Item field="delete_row">{lang['Delete Row']}</Menu.Item> : null}
+                {this.props.edit ? <Menu.Item field="clone_row">{lang['Clone Row']}</Menu.Item> : null}
                 {this.props.customMenu?<Menu.Item step/>:null}
                 {this.props.customMenu?this.props.customMenu.map((menu)=>{
                     return this.explainCustomMenu(menu)
@@ -934,51 +1105,98 @@ const stopEvent  = function (e) {
 };
 
 CTable.propTypes = {
+    //主题
     theme       : PropTypes.oneOf(['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark']),
+    //标头主题
     headerTheme : PropTypes.oneOf(['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark']),
+    //标头css class
     headClass   : PropTypes.string,
+    //数据来源
     data        : PropTypes.array,
+    //数据总记录数
     dataCount   : PropTypes.number,
+    //总页数
     page        : PropTypes.number,
+    //第一列是否出现选择项
     select      : PropTypes.bool,
+    //是否显示标头
     header      : PropTypes.bool,
+    //
     center      : PropTypes.bool,
+    //数据当前页
     currentPage : PropTypes.number,
+    //
     striped     : PropTypes.bool,
+    //是否显示边框
     bordered    : PropTypes.bool,
+    //行是否有hover效果
     hover       : PropTypes.bool,
+    //是否小型化显示列表
     sm          : PropTypes.bool,
+    //文字最小化
     fontSm      : PropTypes.bool,
     responsive  : PropTypes.bool,
+    //文字列表 left,center,right
     align       : PropTypes.string,
+    //是否显示树结构
     tree        : PropTypes.string,
+    //点击树事件
     onClickTree : PropTypes.func,
+    //点击事件
     onClick     : PropTypes.func,
+    //选择事件
     onCheck     : PropTypes.func,
+    //过滤事件
     onFilter    : PropTypes.func,
+    //排序事件
     onSort      : PropTypes.func,
+    //是否列可移动
     move        : PropTypes.bool,
+    //刷新事件
     onRefresh   : PropTypes.func,
+    //刷新事件按钮文字
     refreshText : PropTypes.string,
+    //是否漂浮
     absolute    : PropTypes.bool,
+    //漂浮X坐标
     x           : PropTypes.string,
+    //漂浮Y坐标
     y           : PropTypes.string,
+    //表宽
     width       : PropTypes.string,
+    //表高
     height      : PropTypes.string,
-    foot        : PropTypes.bool,
+    // foot        : PropTypes.bool,
+    //是否显示列表尾
+    foot        : PropTypes.object,
+    //表自动随主体小设置
     position    : PropTypes.object,
+    //显示的页码数
     showPages   : PropTypes.number,
+    //显示的记录条数
     showNumbers : PropTypes.number,
+    //翻页事件
     onSelectPage: PropTypes.func,
+    //是否自动换行
     noWrap      : PropTypes.bool,
+    //是否启用右键菜单
     menu        : PropTypes.bool,
+    //是否显示每列记录总合数
     total       : PropTypes.object,
+    //是否编辑模式
     edit        : PropTypes.bool,
+    //数据删除事件
     onDelete    : PropTypes.func,
+    //是否启用排序
     sort        : PropTypes.bool,
+    //是否启用过滤
     filter      : PropTypes.bool,
+    //自定义右键菜单
     customMenu  : PropTypes.array,
-    lang        : PropTypes.object
+    //自定义显示语言
+    lang        : PropTypes.object,
+    source      : PropTypes.string,
+    sourceFunc  : PropTypes.func,
 };
 
 CTable.defaultProps = {
@@ -998,6 +1216,9 @@ CTable.defaultProps = {
     bordered   : true,
     move       : true,
     menu       : true,
+    showNumbers: 30,
+    showPages  : 10,
+    source     : null
 };
 
 export default CTable;
